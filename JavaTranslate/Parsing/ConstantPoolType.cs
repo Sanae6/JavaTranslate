@@ -1,6 +1,6 @@
-﻿namespace JavaTranslate.ClassFile; 
+﻿namespace JavaTranslate.Parsing;
 
-internal enum ConstantPoolType : byte {
+public enum ConstantPoolType : byte {
     Utf8 = 1,
     Integer = 3,
     Float = 4,

@@ -1,5 +1,17 @@
-﻿// See https://aka.ms/new-console-template for more information
-using JavaTranslate.ClassFile;
+﻿using dnlib.DotNet;
+using JavaTranslate.Parsing;
+using JavaTranslate.Translation;
+using Newtonsoft.Json;
 
-ClassFile file = new ClassFile(File.ReadAllBytes(args[0]));
-Console.WriteLine("Hello, World!");
+Translator translator = new Translator();
+foreach (string path in args) {
+    ClassFile file = new ClassFile(File.ReadAllBytes(path));
+    translator.AddClassFile(file);
+    File.WriteAllText($"{Path.GetFileNameWithoutExtension(path)}.json", JsonConvert.SerializeObject(file, Formatting.Indented));
+}
+
+ModuleDefUser module = translator.Translate();
+AssemblyDefUser assembly = new AssemblyDefUser("JavaProgram");
+assembly.Modules.Add(module);
+module.Write("JavaProgram.dll");
+Console.WriteLine("Done!");

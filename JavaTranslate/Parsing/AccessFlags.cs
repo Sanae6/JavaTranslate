@@ -1,4 +1,4 @@
-﻿namespace JavaTranslate.ClassFile; 
+﻿namespace JavaTranslate.Parsing; 
 
 [Flags]
 public enum AccessFlags : ushort {

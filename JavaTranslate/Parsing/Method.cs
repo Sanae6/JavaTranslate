@@ -1,6 +1,9 @@
-﻿namespace JavaTranslate.ClassFile;
+﻿using System.Reflection;
+using JavaTranslate.Parsing.Attributes;
 
-public class Method {
+namespace JavaTranslate.Parsing;
+
+public class Method : IAttributeContainer {
     public AccessFlags Flags { get; }
     public string Name { get; }
     public string Type { get; }
@@ -11,5 +14,10 @@ public class Method {
         Name = name;
         Type = type;
         Attributes = attributes;
+    }
+
+    public T? GetAttribute<T>() where T : AttributeData {
+        return (T?) Attributes
+            .FirstOrDefault(x => typeof(T).GetCustomAttribute<JavaAttributeAttribute>()?.Name == x.Name)?.Data;
     }
 }

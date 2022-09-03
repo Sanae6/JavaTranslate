@@ -1,10 +1,12 @@
-﻿namespace JavaTranslate.ClassFile; 
+﻿using JavaTranslate.Parsing.Attributes;
+
+namespace JavaTranslate.Parsing; 
 
 public class Attribute {
     public string Name { get; }
-    public byte[] Data { get; }
-    public Attribute(string name, byte[] data) {
+    public AttributeData? Data { get; }
+    public Attribute(string name, ClassFile classFile, ref SpanReader data, int length) {
         Name = name;
-        Data = data;
+        Data = AttributeData.CreateAttributeData(name, classFile, ref data, length);
     }
 }

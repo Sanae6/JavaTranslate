@@ -5,19 +5,20 @@ namespace JavaTranslate.Parsing;
 
 public interface IOpcode {
     public Operation Operation { get; }
+    public int Offset { get; }
 }
 
-public record OpcodeSimple(Operation Operation) : IOpcode;
+public record OpcodeSimple(Operation Operation, int Offset) : IOpcode;
 
-public record OpcodeBranch(Operation Operation, int Location) : IOpcode;
+public record OpcodeBranch(Operation Operation, int Offset, int Location) : IOpcode;
 
-public record OpcodeValueExtra(Operation Operation, short Value, byte ExtraValue) : IOpcode;
+public record OpcodeValueExtra(Operation Operation, int Offset, short Value, byte ExtraValue) : IOpcode;
 
-public record OpcodeOneValue(Operation Operation, short Value) : IOpcode;
+public record OpcodeOneValue(Operation Operation, int Offset, short Value) : IOpcode;
 
-public record OpcodeTwoValue(Operation Operation, short FirstValue, short SecondValue) : IOpcode;
+public record OpcodeTwoValue(Operation Operation, int Offset, short FirstValue, short SecondValue) : IOpcode;
 
-public record OpcodeTable(Operation Operation, byte[] JumpTable) : IOpcode;
+public record OpcodeTable(Operation Operation, int Offset, byte[] JumpTable) : IOpcode;
 
 [JsonConverter(typeof(StringEnumConverter))]
 public enum Operation : byte {

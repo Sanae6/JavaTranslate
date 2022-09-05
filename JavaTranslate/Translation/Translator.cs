@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using dnlib.DotNet;
 using dnlib.DotNet.Emit;
 using JavaTranslate.Parsing;
@@ -11,11 +12,12 @@ using TypeAttributes = dnlib.DotNet.TypeAttributes;
 
 namespace JavaTranslate.Translation;
 
-public class Translator {
+public sealed class Translator {
     private readonly ModuleDefUser Module = new ModuleDefUser("JavaProgram");
     private readonly List<ClassFile> Files = new List<ClassFile>();
     private readonly List<(TypeDefUser, ClassFile)> Classes = new List<(TypeDefUser, ClassFile)>();
     private static readonly Dictionary<string, Type> JavaTypes = new Dictionary<string, Type>();
+
     static Translator() {
         Type[] allTypes = typeof(Object).Assembly.GetTypes();
 
@@ -24,6 +26,7 @@ public class Translator {
                 ? $"{GetTypeName(type)}${type.Name.Remove(type.DeclaringType!.Name.Length + 1)}"
                 : type.Name;
         }
+
         foreach (Type type in allTypes) {
             JavaTypes.Add(
                 (type.Namespace == null ? string.Empty : type.Namespace?.Replace('.', '/') + "/") + GetTypeName(type),
@@ -50,11 +53,14 @@ public class Translator {
         // todo! stack opcodes, store and duplicate lists to permit reordering of translated code if needed
         // not sure how java stack works, hoping it's not required for anything and it's 1:1 translation
 
-        if (methodDef.IsIL) {
+        if ((method.Flags & AccessFlags.Native) == 0) {
             CilBody body = methodDef.Body = new CilBody();
             body.KeepOldMaxStack = true;
             CodeAttribute code = method.GetAttribute<CodeAttribute>()
                                  ?? throw new NullReferenceException("Couldn't find code attribute!");
+
+            LocalManager locals = new LocalManager(this, methodDef, method);
+
             foreach (IOpcode op in code.Code) {
                 switch (op.Operation) {
                     case Operation.IntLoadVar0:
@@ -62,28 +68,56 @@ public class Translator {
                     case Operation.FloatLoadVar0:
                     case Operation.DoubleLoadVar0:
                     case Operation.RefLoadVar0:
-                        body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+                        body.Instructions.AddRange(locals.Load(0, op.Offset));
                         break;
                     case Operation.IntLoadVar1:
                     case Operation.LongLoadVar1:
                     case Operation.FloatLoadVar1:
                     case Operation.DoubleLoadVar1:
                     case Operation.RefLoadVar1:
-                        body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_1));
+                        body.Instructions.AddRange(locals.Load(1, op.Offset));
                         break;
                     case Operation.IntLoadVar2:
                     case Operation.LongLoadVar2:
                     case Operation.FloatLoadVar2:
                     case Operation.DoubleLoadVar2:
                     case Operation.RefLoadVar2:
-                        body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_2));
+                        body.Instructions.AddRange(locals.Load(2, op.Offset));
                         break;
                     case Operation.IntLoadVar3:
                     case Operation.LongLoadVar3:
                     case Operation.FloatLoadVar3:
                     case Operation.DoubleLoadVar3:
                     case Operation.RefLoadVar3:
-                        body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_3));
+                        body.Instructions.AddRange(locals.Load(3, op.Offset));
+                        break;
+                    case Operation.IntStoreVar0:
+                    case Operation.LongStoreVar0:
+                    case Operation.FloatStoreVar0:
+                    case Operation.DoubleStoreVar0:
+                    case Operation.RefStoreVar0:
+                        body.Instructions.AddRange(locals.Store(0, op.Offset));
+                        break;
+                    case Operation.IntStoreVar1:
+                    case Operation.LongStoreVar1:
+                    case Operation.FloatStoreVar1:
+                    case Operation.DoubleStoreVar1:
+                    case Operation.RefStoreVar1:
+                        body.Instructions.AddRange(locals.Store(1, op.Offset));
+                        break;
+                    case Operation.IntStoreVar2:
+                    case Operation.LongStoreVar2:
+                    case Operation.FloatStoreVar2:
+                    case Operation.DoubleStoreVar2:
+                    case Operation.RefStoreVar2:
+                        body.Instructions.AddRange(locals.Store(2, op.Offset));
+                        break;
+                    case Operation.IntStoreVar3:
+                    case Operation.LongStoreVar3:
+                    case Operation.FloatStoreVar3:
+                    case Operation.DoubleStoreVar3:
+                    case Operation.RefStoreVar3:
+                        body.Instructions.AddRange(locals.Store(3, op.Offset));
                         break;
                     case Operation.IntAdd:
                     case Operation.LongAdd:
@@ -133,66 +167,96 @@ public class Translator {
                                 break;
                             case string s:
                                 body.Instructions.Add(Instruction.Create(OpCodes.Ldstr, s));
+                                body.Instructions.Add(Instruction.Create(OpCodes.Call, Module.Import(
+                                    typeof(java.lang.String).GetMethod(nameof(java.lang.String.FromNetString)))));
                                 break;
                         }
+
                         break;
                     }
-                    case Operation.Return or Operation.IntReturn or Operation.LongReturn or Operation.FloatReturn or Operation.DoubleReturn or Operation.RefReturn:
+                    case Operation.IntConstM1:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_M1));
+                        break;
+                    case Operation.IntConst0:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_0));
+                        break;
+                    case Operation.IntConst1:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+                        break;
+                    case Operation.IntConst2:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_2));
+                        break;
+                    case Operation.IntConst3:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_3));
+                        break;
+                    case Operation.IntConst4:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_4));
+                        break;
+                    case Operation.IntConst5:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_5));
+                        break;
+                    case Operation.LongConst0:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I8, 0));
+                        break;
+                    case Operation.LongConst1:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I8, 1));
+                        break;
+                    case Operation.FloatConst0:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 0.0f));
+                        break;
+                    case Operation.FloatConst1:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 1.0f));
+                        break;
+                    case Operation.FloatConst2:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 2.0f));
+                        break;
+                    case Operation.DoubleConst0:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R8, 0.0));
+                        break;
+                    case Operation.DoubleConst1:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R8, 1.0));
+                        break;
+                    case Operation.BytePush or Operation.ShortPush: {
+                        OpcodeOneValue opcode = (OpcodeOneValue) op;
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4, opcode.Value));
+                        break;
+                    }
+                    case Operation.Return or Operation.IntReturn or Operation.LongReturn or Operation.FloatReturn
+                        or Operation.DoubleReturn or Operation.RefReturn:
                         body.Instructions.Add(Instruction.Create(OpCodes.Ret));
                         break;
-                    case Operation.InvokeSpecial or Operation.InvokeStatic: {
+                    case Operation.New: {
                         OpcodeOneValue opcode = (OpcodeOneValue) op;
-                        ClassFile.RefConstant constant = file.GetConstant<ClassFile.RefConstant>((ushort) opcode.Value);
-                        ClassFile.NameAndType nameAndType =
-                            file.GetConstant<ClassFile.NameAndType>(constant.NameAndTypeIndex);
-                        string className = file.GetStringConstant(file.GetConstant<ushort>(constant.ClassIndex))
-                                           ?? throw new Exception();
-                        string name = file.GetStringConstant(nameAndType.NameIndex) ?? throw new Exception();
-                        string type = file.GetStringConstant(nameAndType.TypeIndex) ?? throw new Exception();
-                        MethodSig methodSignature = MethodSignature(false, type);
-                        if (JavaTypes.TryGetValue(className, out Type? javaType)) {
-                            IEnumerable<MethodBase> methods = javaType.GetMethods(BindingFlags.Instance
-                                    | BindingFlags.Static
-                                    | BindingFlags.Public
-                                    | BindingFlags.NonPublic)
-                                .Concat(javaType.GetConstructors().Cast<MethodBase>())
-                                .Where(x => x.Name == TranslateSpecialName(name));
-                            IMethod methodRef = Module.Import(methods.First(x =>
-                                Module.Import(x).MethodSig.ToString() == methodSignature.ToString()));
-                            body.Instructions.Add(Instruction.Create(OpCodes.Call, methodRef));
-                        } else {
-                            (TypeDefUser? otherTypeDef, ClassFile? _) = Classes.First(x => x.Item2.Name == className);
-                            body.Instructions.Add(Instruction.Create(OpCodes.Call, otherTypeDef.Methods.First(x =>
-                                x.Name == TranslateSpecialName(name)
-                                && x.MethodSig.ToString() == methodSignature.ToString())));
-                        }
+                        string className = file.GetClassName((ushort) opcode.Value)!;
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldtoken, Resolve(className)));
+                        body.Instructions.Add(Instruction.Create(OpCodes.Call, Module.Import(
+                            typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle)))));
+                        body.Instructions.Add(Instruction.Create(OpCodes.Call, Module.Import(
+                            typeof(RuntimeHelpers).GetMethod(nameof(RuntimeHelpers.GetUninitializedObject)))));
                         break;
                     }
-                    case Operation.InvokeVirtual or Operation.InvokeInterface: {
+                    case Operation.Dup:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Dup));
+                        break;
+                    case Operation.Pop:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                        break;
+                    case Operation.InvokeSpecial or Operation.InvokeStatic or Operation.InvokeInterface
+                        or Operation.InvokeVirtual: {
                         OpcodeOneValue opcode = (OpcodeOneValue) op;
                         ClassFile.RefConstant constant = file.GetConstant<ClassFile.RefConstant>((ushort) opcode.Value);
                         ClassFile.NameAndType nameAndType =
                             file.GetConstant<ClassFile.NameAndType>(constant.NameAndTypeIndex);
-                        string className = file.GetStringConstant(file.GetConstant<ushort>(constant.ClassIndex))
+                        string className = file.GetClassName(constant.ClassIndex)
                                            ?? throw new Exception();
                         string name = file.GetStringConstant(nameAndType.NameIndex) ?? throw new Exception();
                         string type = file.GetStringConstant(nameAndType.TypeIndex) ?? throw new Exception();
                         MethodSig methodSignature = MethodSignature(false, type);
-                        if (JavaTypes.TryGetValue(className, out Type? javaType)) {
-                            IEnumerable<MethodBase> methods = javaType.GetMethods(BindingFlags.Static
-                                    | BindingFlags.Instance
-                                    | BindingFlags.Public
-                                    | BindingFlags.NonPublic)
-                                .Where(x => x.Name == TranslateSpecialName(name));
-                            IMethod methodRef = Module.Import(methods.First(x =>
-                                Module.Import(x).MethodSig.ToString() == methodSignature.ToString()));
-                            body.Instructions.Add(Instruction.Create(OpCodes.Callvirt, methodRef));
-                        } else {
-                            (TypeDefUser? otherTypeDef, ClassFile? _) = Classes.First(x => x.Item2.Name == className);
-                            body.Instructions.Add(Instruction.Create(OpCodes.Callvirt, otherTypeDef.Methods.First(x =>
-                                x.Name == TranslateSpecialName(name)
-                                && x.MethodSig.ToString() == methodSignature.ToString())));
-                        }
+                        body.Instructions.Add(Instruction.Create(
+                            op.Operation is Operation.InvokeSpecial or Operation.InvokeStatic
+                                ? OpCodes.Call
+                                : OpCodes.Callvirt, Resolve(className, name, methodSignature)));
+
                         break;
                     }
                     case Operation.GetField or Operation.GetStatic or Operation.PutField or Operation.PutStatic: {
@@ -200,39 +264,67 @@ public class Translator {
                         ClassFile.RefConstant constant = file.GetConstant<ClassFile.RefConstant>((ushort) opcode.Value);
                         ClassFile.NameAndType nameAndType =
                             file.GetConstant<ClassFile.NameAndType>(constant.NameAndTypeIndex);
-                        string className = file.GetStringConstant(file.GetConstant<ushort>(constant.ClassIndex))
+                        string className = file.GetClassName(constant.ClassIndex)
                                            ?? throw new Exception();
                         string name = file.GetStringConstant(nameAndType.NameIndex) ?? throw new Exception();
-                        string type = file.GetStringConstant(nameAndType.TypeIndex) ?? throw new Exception();
-                        int pos = 0;
-                        TypeSig fieldSignature = ComponentSignature(type, false, ref pos);
-                        OpCode finalOpCode = op.Operation switch {
+                        body.Instructions.Add(Instruction.Create(op.Operation switch {
                             Operation.GetField => OpCodes.Ldfld,
                             Operation.GetStatic => OpCodes.Ldsfld,
                             Operation.PutField => OpCodes.Stfld,
                             Operation.PutStatic => OpCodes.Stsfld,
-                            _ => throw new ArgumentOutOfRangeException() // impossible
-                        };
-                        if (JavaTypes.TryGetValue(className, out Type? javaType)) {
-                            IEnumerable<FieldInfo> fields = javaType.GetFields(BindingFlags.Static
-                                                                               | BindingFlags.Instance
-                                                                               | BindingFlags.Public
-                                                                               | BindingFlags.NonPublic)
-                                .Where(x => x.Name == TranslateSpecialName(name));
-                            IField fieldRef = Module.Import(fields.First(x =>
-                                Module.Import(x).FieldSig.ToString() == fieldSignature.ToString()));
-                            body.Instructions.Add(Instruction.Create(finalOpCode, fieldRef));
-                        } else {
-                            (TypeDefUser? otherTypeDef, ClassFile? _) = Classes.First(x => x.Item2.Name == className);
-                            body.Instructions.Add(Instruction.Create(finalOpCode, otherTypeDef.Fields.First(x =>
-                                x.Name == TranslateSpecialName(name)
-                                && x.FieldSig.ToString() == fieldSignature.ToString())));
-                        }
+                        }, Resolve(className, name)));
                         break;
                     }
                 }
             }
         }
+    }
+
+    private ITypeDefOrRef Resolve(string className) {
+        if (JavaTypes.TryGetValue(className, out Type? javaType)) return Module.Import(javaType);
+        return Classes.Where(x => x.Item2.Name == className).Select(x => x.Item1).FirstOrDefault() ??
+               throw new KeyNotFoundException($"Could not find class {className}");
+    }
+
+    private IMethod Resolve(string className, string methodName, MethodSig methodSig) {
+        if (JavaTypes.TryGetValue(className, out Type? javaType)) {
+            IEnumerable<MethodBase> methods = javaType.GetMethods(BindingFlags.Static
+                                                                  | BindingFlags.Instance
+                                                                  | BindingFlags.Public
+                                                                  | BindingFlags.NonPublic)
+                .Where(x => x.Name == TranslateSpecialName(methodName))
+                .Concat(javaType.GetConstructors(BindingFlags.Static
+                                                 | BindingFlags.Instance
+                                                 | BindingFlags.Public
+                                                 | BindingFlags.NonPublic).Cast<MethodBase>());
+            return Module.Import(methods.FirstOrDefault(x =>
+                                     Module.Import(x).MethodSig.ToString() == methodSig.ToString()) ??
+                                 throw new KeyNotFoundException($"Could not find method {methodName} on {className}"));
+        }
+
+        TypeDefUser otherTypeDef =
+            Classes.Where(x => x.Item2.Name == TranslateSpecialName(className)).Select(x => x.Item1).FirstOrDefault() ??
+            throw new KeyNotFoundException($"Could not find class {className}");
+        return otherTypeDef.Methods.FirstOrDefault(x => x.Name == TranslateSpecialName(methodName)) ??
+               throw new KeyNotFoundException($"Could not find method {methodName} on {className}");
+    }
+
+    private IField Resolve(string className, string fieldName) {
+        if (JavaTypes.TryGetValue(className, out Type? javaType)) {
+            FieldInfo field = javaType.GetFields(BindingFlags.Static
+                                                 | BindingFlags.Instance
+                                                 | BindingFlags.Public
+                                                 | BindingFlags.NonPublic)
+                                  .FirstOrDefault(x => x.Name == fieldName) ??
+                              throw new KeyNotFoundException($"Could not find field {fieldName} on {className}");
+            return Module.Import(field);
+        }
+
+        TypeDefUser otherTypeDef =
+            Classes.Where(x => x.Item2.Name == className).Select(x => x.Item1).FirstOrDefault() ??
+            throw new KeyNotFoundException($"Could not find class {className}");
+        return otherTypeDef.Fields.FirstOrDefault(x => x.Name == fieldName) ??
+               throw new KeyNotFoundException($"Could not find field {fieldName} on {className}");
     }
 
     private static string TranslateSpecialName(string name) => name switch {
@@ -246,10 +338,9 @@ public class Translator {
         int pos = 0;
         List<TypeSig> argSignatures = new List<TypeSig>();
         while (pos < args.Length) argSignatures.Add(ComponentSignature(args, false, ref pos));
-        pos = 0;
         return new MethodSig(isStatic ? CallingConvention.Default : CallingConvention.HasThis, 0, ComponentSignature(
             signature[
-                (args.Length + 2)..], true, ref pos), argSignatures);
+                (args.Length + 2)..], true), argSignatures);
     }
 
     private void TranslateField(FieldDef fieldDef, Field field) {
@@ -263,8 +354,12 @@ public class Translator {
             fieldDef.Attributes |= FieldAttributes.InitOnly;
         if ((field.Flags & AccessFlags.Static) != 0)
             fieldDef.Attributes |= FieldAttributes.Static;
+        fieldDef.Signature = new FieldSig(ComponentSignature(field.Type, false));
+    }
+
+    public TypeSig ComponentSignature(string type, bool isReturnType) {
         int pos = 0;
-        fieldDef.Signature = new FieldSig(ComponentSignature(field.Type, false, ref pos));
+        return ComponentSignature(type, isReturnType, ref pos);
     }
 
     public TypeSig ComponentSignature(string type, bool isReturnType, ref int pos) {
@@ -290,15 +385,12 @@ public class Translator {
             case 'L': {
                 string typeName = type[pos..type.IndexOf(';', pos)];
                 pos += typeName.Length + 1;
-                if (JavaTypes.TryGetValue(typeName, out Type? javaType))
-                    return Module.ImportAsTypeSig(javaType);
-                if (Classes.Any(tuple => tuple.Item2.Name == typeName))
-                    return Classes.First(tuple => tuple.Item2.Name == typeName).Item1.ToTypeSig();
-                throw new KeyNotFoundException($"Could not find type {typeName}");
+                return Resolve(typeName).ToTypeSig();
             }
             case '[':
-                return new ArraySig(ComponentSignature(type, isReturnType, ref pos));
+                return new ArraySig(ComponentSignature(type, isReturnType, ref pos), 1);
         }
+
         throw new InvalidDataException($"Bad type descriptor {type[pos - 1]}");
     }
 
@@ -328,7 +420,7 @@ public class Translator {
                 if ((method.Flags & AccessFlags.Static) != 0)
                     methodDef.Attributes |= MethodAttributes.Static;
                 if ((method.Flags & AccessFlags.Native) != 0)
-                    methodDef.ImplAttributes |= MethodImplAttributes.Native;
+                    methodDef.ImplAttributes |= MethodImplAttributes.InternalCall;
 
                 type.Methods.Add(methodDef);
                 methods.Add(methodDef, method);
@@ -345,12 +437,13 @@ public class Translator {
 
         // second pass
         foreach ((TypeDefUser type, ClassFile file) in Classes) {
-            if (type.Name.Contains(".")) {
-                TypeDef parent = Module.Types.First(x =>
-                    x.Name.String == type.Name.String[..type.Name.LastIndexOf('.')] && x.Namespace == type.Namespace);
-                parent.NestedTypes.Add(type);
+            if (file.GetAttribute<NestHostAttribute>() is { } host) {
+                type.Attributes |= TypeAttributes.NestedPublic;
+                Classes.First(x => x.Item2.Name == host.ClassName).Item1.NestedTypes.Add(type);
             } else
                 Module.Types.Add(type);
+
+            type.BaseType = Resolve(file.SuperClass);
 
             TranslateClass(file, type);
 

@@ -42,31 +42,32 @@ public sealed class CodeAttribute : AttributeData, IAttributeContainer {
     }
 
     private static IEnumerable<IOpcode> GetOpcodes(ref SpanReader reader) {
-        int end = reader.Position + 4 + reader.ReadI32();
+        int end = reader.ReadI32() + reader.Position;
+        int start = reader.Position;
         List<IOpcode> opcodes = new List<IOpcode>();
         while (reader.Position < end) {
             Operation op = reader.Read<Operation>();
-            opcodes.Add(ReadOpcode(ref reader, op, false));
+            opcodes.Add(ReadOpcode(ref reader, op, reader.Position - start, false));
         }
         return opcodes;
     }
 
-    private static IOpcode ReadOpcode(ref SpanReader reader, Operation op, bool wide) {
+    private static IOpcode ReadOpcode(ref SpanReader reader, Operation op, int offset, bool wide) {
         if (op == Operation.Wide) {
             if (wide) throw new Exception("Wide opcode recursion!");
-            return ReadOpcode(ref reader, reader.Read<Operation>(), true);
+            return ReadOpcode(ref reader, reader.Read<Operation>(), offset, true);
         }
 
         OperationType type = Types[(int) op];
         return type switch {
-            OperationType.Simple => new OpcodeSimple(op),
-            OperationType.Branch => new OpcodeBranch(op,
+            OperationType.Simple => new OpcodeSimple(op, offset),
+            OperationType.Branch => new OpcodeBranch(op, offset,
                 op is Operation.GotoWide or Operation.JsrWide ? reader.ReadI32() : reader.ReadI16()),
-            OperationType.ValueExtra => new OpcodeValueExtra(op, reader.ReadI16(), reader.Read<byte>()),
-            OperationType.OneValue => new OpcodeOneValue(op, wide ? reader.ReadI16() : reader.Read<byte>()),
-            OperationType.TwoValue => new OpcodeTwoValue(op, wide ? reader.ReadI16() : reader.Read<byte>(),
+            OperationType.ValueExtra => new OpcodeValueExtra(op, offset, reader.ReadI16(), reader.Read<byte>()),
+            OperationType.OneValue => new OpcodeOneValue(op, offset, wide ? reader.ReadI16() : reader.Read<byte>()),
+            OperationType.TwoValue => new OpcodeTwoValue(op, offset, wide ? reader.ReadI16() : reader.Read<byte>(),
                 wide ? reader.ReadI16() : reader.Read<byte>()),
-            OperationType.WideOneValue => new OpcodeOneValue(op, reader.ReadI16()),
+            OperationType.WideOneValue => new OpcodeOneValue(op, offset, reader.ReadI16()),
             OperationType.Table =>
                 throw new NotImplementedException("Jump table opcodes are not yet supported"),
             _ => throw new NotImplementedException()
@@ -102,7 +103,7 @@ public sealed class CodeAttribute : AttributeData, IAttributeContainer {
         OperationType.Simple,
         OperationType.Simple,
         OperationType.OneValue,
-        OperationType.TwoValue,
+        OperationType.WideOneValue,
         OperationType.OneValue,
         OperationType.WideOneValue,
         OperationType.WideOneValue,

@@ -1,8 +1,9 @@
 ﻿using System.Buffers.Binary;
+using dnlib.DotNet.Emit;
 
 namespace JavaTranslate.Parsing; 
 
-internal static class ParsingExtensions {
+internal static class Extensions {
     internal static ushort ReadU16(this ReadOnlySpan<byte> data, ref int pos) {
         ushort result = BinaryPrimitives.ReadUInt16BigEndian(data[pos..]);
         pos += 2;
@@ -17,5 +18,11 @@ internal static class ParsingExtensions {
         int result = BinaryPrimitives.ReadInt32BigEndian(data[pos..]);
         pos += 4;
         return result;
+    }
+
+    internal static void AddRange(this IList<Instruction> list, IEnumerable<Instruction> instructions) {
+        foreach (Instruction inst in instructions) {
+            list.Add(inst);
+        }
     }
 }

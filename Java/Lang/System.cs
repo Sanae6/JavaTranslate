@@ -2,6 +2,6 @@
 
 namespace java.lang; 
 
-public class System {
-    public static PrintStream @out = null!;
+public class System : Object {
+    public static PrintStream @out = new PrintStream();
 }

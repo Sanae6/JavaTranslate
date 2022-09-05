@@ -1,11 +1,13 @@
 ﻿using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using JavaTranslate.Parsing.Attributes;
 
 namespace JavaTranslate.Parsing;
 
-public class ClassFile {
+public sealed class ClassFile : IAttributeContainer {
     private readonly ImmutableArray<byte> Magic = ImmutableArray.Create<byte>(0xCA, 0xFE, 0xBA, 0xBE);
 
     private object[] Constants = null!;
@@ -15,12 +17,18 @@ public class ClassFile {
     public string[] Interfaces = null!;
     public Field[] Fields = null!;
     public Method[] Methods = null!;
-    public Attribute[] Attributes = null!;
+    public Attribute[] Attributes { get; private set; } = null!;
+
+    public T? GetAttribute<T>() where T : AttributeData {
+        return (T?) Attributes
+            .FirstOrDefault(x => typeof(T).GetCustomAttribute<JavaAttributeAttribute>()?.Name == x.Name)?.Data;
+    }
 
     public ClassFile(ReadOnlySpan<byte> data) {
         if (!data[..4].SequenceEqual(Magic.AsSpan())) {
             throw new ArgumentException("Invalid class magic!", nameof(data));
         }
+
         Read(data);
     }
 
@@ -28,11 +36,11 @@ public class ClassFile {
         SpanReader reader = new SpanReader(data, 8);
         ReadConstants(ref reader);
         Flags = (AccessFlags) reader.ReadU16();
-        Name = ReadStringConstant(ref reader);
-        SuperClass = ReadStringConstant(ref reader);
+        Name = ReadClassName(ref reader);
+        SuperClass = ReadClassName(ref reader);
         Interfaces = new string[reader.ReadU16()];
         for (int i = 0; i < Interfaces.Length; i++) {
-            Interfaces[i] = ReadStringConstant(ref reader);
+            Interfaces[i] = ReadClassName(ref reader);
         }
 
         ReadFields(ref reader);
@@ -53,13 +61,17 @@ public class ClassFile {
         return GetConstant<string>(index);
     }
 
+    public string? GetClassName(ushort index) {
+        return GetStringConstant(GetConstant<ClassConstant>(index).Name);
+    }
+
     internal T ReadConstant<T>(ref SpanReader reader) {
         ushort constant = reader.ReadU16();
         return (T) Constants[constant - 1];
     }
 
-    internal string ReadStringConstant(ref SpanReader reader) {
-        return (string) Constants[ReadConstant<ushort>(ref reader) - 1];
+    private string ReadClassName(ref SpanReader reader) {
+        return (string) Constants[ReadConstant<ClassConstant>(ref reader).Name - 1];
     }
 
     private void ReadFields(ref SpanReader reader) {
@@ -94,6 +106,7 @@ public class ClassFile {
             int length = reader.ReadI32();
             attributes[i] = new Attribute(name, this, ref reader, length);
         }
+
         return attributes;
     }
 
@@ -138,7 +151,7 @@ public class ClassFile {
                     Constants[i] = new StringConstant(reader.ReadU16());
                     break;
                 case ConstantPoolType.Class:
-                    Constants[i] = reader.ReadU16();
+                    Constants[i] = new ClassConstant(reader.ReadU16());
                     break;
                 case ConstantPoolType.NameAndType:
                     Constants[i] = new NameAndType(ref reader);
@@ -164,6 +177,7 @@ public class ClassFile {
             ClassIndex = reader.ReadU16();
             NameAndTypeIndex = reader.ReadU16();
         }
+
         public ConstantPoolType Type { get; }
         public ushort ClassIndex { get; }
         public ushort NameAndTypeIndex { get; }
@@ -171,6 +185,7 @@ public class ClassFile {
 
     private readonly struct StringConstant {
         public readonly ushort Location;
+
         public StringConstant(ushort location) {
             Location = location;
         }
@@ -178,6 +193,7 @@ public class ClassFile {
 
     private readonly struct ClassConstant {
         public readonly ushort Name;
+
         public ClassConstant(ushort name) {
             Name = name;
         }
@@ -188,6 +204,7 @@ public class ClassFile {
             NameIndex = reader.ReadU16();
             TypeIndex = reader.ReadU16();
         }
+
         public ushort NameIndex { get; }
         public ushort TypeIndex { get; }
     }

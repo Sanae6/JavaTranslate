@@ -403,6 +403,10 @@ public sealed class Translator {
                 : new TypeDefUser(file.Name[..file.Name.LastIndexOf('/')].Replace('/', '.'),
                     file.Name[(file.Name.LastIndexOf('/') + 1)..].Replace('$', '.'));
 
+            if (file.Name.LastIndexOf('$') >= 0) {
+                type.Name = file.Name[(file.Name.LastIndexOf('$') + 1)..];
+            }
+
             foreach (Method method in file.Methods) {
                 MethodDefUser methodDef = new MethodDefUser(TranslateSpecialName(method.Name),
                     MethodSignature((method.Flags & AccessFlags.Static) != 0, method.Type));

@@ -13,7 +13,10 @@ using TypeAttributes = dnlib.DotNet.TypeAttributes;
 namespace JavaTranslate.Translation;
 
 public sealed class Translator {
-    private readonly ModuleDefUser Module = new ModuleDefUser("JavaProgram");
+    private readonly ModuleDefUser Module = new ModuleDefUser("JavaProgram", Guid.Empty, new AssemblyRefUser(
+        typeof(string).Assembly.GetName().Name,
+        typeof(string).Assembly.GetName().Version
+    ));
     private readonly List<ClassFile> Files = new List<ClassFile>();
     private readonly List<(TypeDefUser, ClassFile)> Classes = new List<(TypeDefUser, ClassFile)>();
     private static readonly Dictionary<string, Type> JavaTypes = new Dictionary<string, Type>();
@@ -54,70 +57,123 @@ public sealed class Translator {
         // not sure how java stack works, hoping it's not required for anything and it's 1:1 translation
 
         if ((method.Flags & AccessFlags.Native) == 0) {
+
+
             CilBody body = methodDef.Body = new CilBody();
             body.KeepOldMaxStack = true;
             CodeAttribute code = method.GetAttribute<CodeAttribute>()
                                  ?? throw new NullReferenceException("Couldn't find code attribute!");
 
+            BranchManager branches = new BranchManager(methodDef);
             LocalManager locals = new LocalManager(this, methodDef, method);
 
             foreach (IOpcode op in code.Code) {
+                Console.WriteLine($"Handling opcode {op.Operation}");
+                int branchStartInst = body.Instructions.Count;
                 switch (op.Operation) {
                     case Operation.IntLoadVar0:
                     case Operation.LongLoadVar0:
                     case Operation.FloatLoadVar0:
                     case Operation.DoubleLoadVar0:
                     case Operation.RefLoadVar0:
-                        body.Instructions.AddRange(locals.Load(0, op.Offset));
+                        body.Instructions.AddRange(locals.Load(0, op.Offset, op.Operation switch {
+                            Operation.IntLoadVar0 => typeof(int),
+                            Operation.LongLoadVar0 => typeof(long),
+                            Operation.FloatLoadVar0 => typeof(float),
+                            Operation.DoubleLoadVar0 => typeof(double),
+                            Operation.RefLoadVar0 => typeof(object)
+                        }));
                         break;
                     case Operation.IntLoadVar1:
                     case Operation.LongLoadVar1:
                     case Operation.FloatLoadVar1:
                     case Operation.DoubleLoadVar1:
                     case Operation.RefLoadVar1:
-                        body.Instructions.AddRange(locals.Load(1, op.Offset));
+                        body.Instructions.AddRange(locals.Load(1, op.Offset, op.Operation switch {
+                            Operation.IntLoadVar1 => typeof(int),
+                            Operation.LongLoadVar1 => typeof(long),
+                            Operation.FloatLoadVar1 => typeof(float),
+                            Operation.DoubleLoadVar1 => typeof(double),
+                            Operation.RefLoadVar1 => typeof(object)
+                        }));
                         break;
                     case Operation.IntLoadVar2:
                     case Operation.LongLoadVar2:
                     case Operation.FloatLoadVar2:
                     case Operation.DoubleLoadVar2:
                     case Operation.RefLoadVar2:
-                        body.Instructions.AddRange(locals.Load(2, op.Offset));
+                        body.Instructions.AddRange(locals.Load(2, op.Offset, op.Operation switch {
+                            Operation.IntLoadVar2 => typeof(int),
+                            Operation.LongLoadVar2 => typeof(long),
+                            Operation.FloatLoadVar2 => typeof(float),
+                            Operation.DoubleLoadVar2 => typeof(double),
+                            Operation.RefLoadVar2 => typeof(object)
+                        }));
                         break;
                     case Operation.IntLoadVar3:
                     case Operation.LongLoadVar3:
                     case Operation.FloatLoadVar3:
                     case Operation.DoubleLoadVar3:
                     case Operation.RefLoadVar3:
-                        body.Instructions.AddRange(locals.Load(3, op.Offset));
+                        body.Instructions.AddRange(locals.Load(3, op.Offset, op.Operation switch {
+                            Operation.IntLoadVar3 => typeof(int),
+                            Operation.LongLoadVar3 => typeof(long),
+                            Operation.FloatLoadVar3 => typeof(float),
+                            Operation.DoubleLoadVar3 => typeof(double),
+                            Operation.RefLoadVar3 => typeof(object)
+                        }));
                         break;
                     case Operation.IntStoreVar0:
                     case Operation.LongStoreVar0:
                     case Operation.FloatStoreVar0:
                     case Operation.DoubleStoreVar0:
                     case Operation.RefStoreVar0:
-                        body.Instructions.AddRange(locals.Store(0, op.Offset));
+                        body.Instructions.AddRange(locals.Store(0, op.Offset, op.Operation switch {
+                            Operation.IntStoreVar0 => typeof(int),
+                            Operation.LongStoreVar0 => typeof(long),
+                            Operation.FloatStoreVar0 => typeof(float),
+                            Operation.DoubleStoreVar0 => typeof(double),
+                            Operation.RefStoreVar0 => typeof(object)
+                        }));
                         break;
                     case Operation.IntStoreVar1:
                     case Operation.LongStoreVar1:
                     case Operation.FloatStoreVar1:
                     case Operation.DoubleStoreVar1:
                     case Operation.RefStoreVar1:
-                        body.Instructions.AddRange(locals.Store(1, op.Offset));
+                        body.Instructions.AddRange(locals.Store(1, op.Offset, op.Operation switch {
+                            Operation.IntStoreVar1 => typeof(int),
+                            Operation.LongStoreVar1 => typeof(long),
+                            Operation.FloatStoreVar1 => typeof(float),
+                            Operation.DoubleStoreVar1 => typeof(double),
+                            Operation.RefStoreVar1 => typeof(object)
+                        }));
                         break;
                     case Operation.IntStoreVar2:
                     case Operation.LongStoreVar2:
                     case Operation.FloatStoreVar2:
                     case Operation.DoubleStoreVar2:
                     case Operation.RefStoreVar2:
-                        body.Instructions.AddRange(locals.Store(2, op.Offset));
+                        body.Instructions.AddRange(locals.Store(2, op.Offset, op.Operation switch {
+                            Operation.IntStoreVar2 => typeof(int),
+                            Operation.LongStoreVar2 => typeof(long),
+                            Operation.FloatStoreVar2 => typeof(float),
+                            Operation.DoubleStoreVar2 => typeof(double),
+                            Operation.RefStoreVar2 => typeof(object)
+                        }));
                         break;
                     case Operation.IntStoreVar3:
                     case Operation.LongStoreVar3:
                     case Operation.FloatStoreVar3:
                     case Operation.DoubleStoreVar3:
                     case Operation.RefStoreVar3:
-                        body.Instructions.AddRange(locals.Store(3, op.Offset));
+                        body.Instructions.AddRange(locals.Store(3, op.Offset, op.Operation switch {
+                            Operation.IntStoreVar3 => typeof(int),
+                            Operation.LongStoreVar3 => typeof(long),
+                            Operation.FloatStoreVar3 => typeof(float),
+                            Operation.DoubleStoreVar3 => typeof(double),
+                            Operation.RefStoreVar3 => typeof(object)
+                        }));
                         break;
                     case Operation.IntAdd:
                     case Operation.LongAdd:
@@ -155,6 +211,10 @@ public sealed class Translator {
                     case Operation.DoubleNeg:
                         body.Instructions.Add(Instruction.Create(OpCodes.Neg));
                         break;
+                    case Operation.IntIncrement:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+                        body.Instructions.Add(Instruction.Create(OpCodes.Add));
+                        break;
                     case Operation.LoadConst: {
                         OpcodeOneValue opcode = (OpcodeOneValue) op;
                         object? constant = file.GetConstant((ushort) opcode.Value);
@@ -170,6 +230,8 @@ public sealed class Translator {
                                 body.Instructions.Add(Instruction.Create(OpCodes.Call, Module.Import(
                                     typeof(java.lang.String).GetMethod(nameof(java.lang.String.FromNetString)))));
                                 break;
+                            default:
+                                throw new InvalidDataException($"Invalid Constant {constant}");
                         }
 
                         break;
@@ -215,6 +277,9 @@ public sealed class Translator {
                         break;
                     case Operation.DoubleConst1:
                         body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R8, 1.0));
+                        break;
+                    case Operation.RefConstNull:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
                         break;
                     case Operation.BytePush or Operation.ShortPush: {
                         OpcodeOneValue opcode = (OpcodeOneValue) op;
@@ -275,7 +340,30 @@ public sealed class Translator {
                         }, Resolve(className, name)));
                         break;
                     }
+                    case Operation.IfIntCmpGe: {
+                        body.Instructions.AddRange(branches.Branch(OpCodes.Bge, ((OpcodeBranch) op).Location));
+                        break;
+                    }
+                    case Operation.IfEq:
+                    case Operation.IfIntCmpEq:
+                    case Operation.IfRefCmpEq: {
+                        body.Instructions.AddRange(branches.Branch(OpCodes.Beq, ((OpcodeBranch) op).Location));
+                        break;
+                    }
+                    case Operation.IfNe:
+                    case Operation.IfIntCmpNe:
+                    case Operation.IfRefCmpNe: {
+                        body.Instructions.Add(Instruction.Create(OpCodes.Bne_Un, Instruction.Create(OpCodes.Nop)));
+                        break;
+                    }
+                    case Operation.Goto:
+                    case Operation.GotoWide:
+                        body.Instructions.Add(Instruction.Create(OpCodes.Br, Instruction.Create(OpCodes.Nop)));
+                        break;
+                    default: throw new NotImplementedException($"Unsupported opcode {op}");
                 }
+                
+                
             }
         }
     }
@@ -299,14 +387,14 @@ public sealed class Translator {
                                                  | BindingFlags.NonPublic).Cast<MethodBase>());
             return Module.Import(methods.FirstOrDefault(x =>
                                      Module.Import(x).MethodSig.ToString() == methodSig.ToString()) ??
-                                 throw new KeyNotFoundException($"Could not find method {methodName} on {className}"));
+                                 throw new KeyNotFoundException($"Could not find method '{methodName}' on {className} with signature {methodSig}"));
         }
 
         TypeDefUser otherTypeDef =
             Classes.Where(x => x.Item2.Name == TranslateSpecialName(className)).Select(x => x.Item1).FirstOrDefault() ??
             throw new KeyNotFoundException($"Could not find class {className}");
         return otherTypeDef.Methods.FirstOrDefault(x => x.Name == TranslateSpecialName(methodName)) ??
-               throw new KeyNotFoundException($"Could not find method {methodName} on {className}");
+               throw new KeyNotFoundException($"Could not find method '{methodName}' on {className} with signature {methodSig}");
     }
 
     private IField Resolve(string className, string fieldName) {
@@ -316,7 +404,7 @@ public sealed class Translator {
                                                  | BindingFlags.Public
                                                  | BindingFlags.NonPublic)
                                   .FirstOrDefault(x => x.Name == fieldName) ??
-                              throw new KeyNotFoundException($"Could not find field {fieldName} on {className}");
+                              throw new KeyNotFoundException($"Could not find field '{fieldName}' on {className}");
             return Module.Import(field);
         }
 
@@ -324,7 +412,7 @@ public sealed class Translator {
             Classes.Where(x => x.Item2.Name == className).Select(x => x.Item1).FirstOrDefault() ??
             throw new KeyNotFoundException($"Could not find class {className}");
         return otherTypeDef.Fields.FirstOrDefault(x => x.Name == fieldName) ??
-               throw new KeyNotFoundException($"Could not find field {fieldName} on {className}");
+               throw new KeyNotFoundException($"Could not find field '{fieldName}' on {className}");
     }
 
     private static string TranslateSpecialName(string name) => name switch {
@@ -388,7 +476,9 @@ public sealed class Translator {
                 return Resolve(typeName).ToTypeSig();
             }
             case '[':
-                return new ArraySig(ComponentSignature(type, isReturnType, ref pos), 1);
+                return new SZArraySig(ComponentSignature(type, isReturnType, ref pos)) {
+                    
+                };
         }
 
         throw new InvalidDataException($"Bad type descriptor {type[pos - 1]}");
@@ -396,7 +486,7 @@ public sealed class Translator {
 
     public ModuleDefUser Translate() {
         Dictionary<MethodDefUser, Method> methods = new Dictionary<MethodDefUser, Method>();
-
+        
         foreach (ClassFile file in Files) {
             TypeDefUser type = file.Name.LastIndexOf('/') < 0
                 ? new TypeDefUser(file.Name.Replace('$', '.'))
@@ -406,6 +496,21 @@ public sealed class Translator {
             if (file.Name.LastIndexOf('$') >= 0) {
                 type.Name = file.Name[(file.Name.LastIndexOf('$') + 1)..];
             }
+
+            Classes.Add((type, file));
+        }
+
+        // second pass
+        foreach ((TypeDefUser type, ClassFile file) in Classes) {
+            if (file.GetAttribute<NestHostAttribute>() is { } host) {
+                type.Attributes |= TypeAttributes.NestedPublic;
+                Classes.First(x => x.Item2.Name == host.ClassName).Item1.NestedTypes.Add(type);
+            } else
+                Module.Types.Add(type);
+
+            type.BaseType = Resolve(file.SuperClass);
+
+            TranslateClass(file, type);
 
             foreach (Method method in file.Methods) {
                 MethodDefUser methodDef = new MethodDefUser(TranslateSpecialName(method.Name),
@@ -435,21 +540,6 @@ public sealed class Translator {
                 TranslateField(fieldDef, field);
                 type.Fields.Add(fieldDef);
             }
-
-            Classes.Add((type, file));
-        }
-
-        // second pass
-        foreach ((TypeDefUser type, ClassFile file) in Classes) {
-            if (file.GetAttribute<NestHostAttribute>() is { } host) {
-                type.Attributes |= TypeAttributes.NestedPublic;
-                Classes.First(x => x.Item2.Name == host.ClassName).Item1.NestedTypes.Add(type);
-            } else
-                Module.Types.Add(type);
-
-            type.BaseType = Resolve(file.SuperClass);
-
-            TranslateClass(file, type);
 
             foreach (MethodDefUser methodDef in type.Methods.Cast<MethodDefUser>()) {
                 Method method = methods[methodDef];

@@ -62,7 +62,7 @@ public sealed class ClassFile : IAttributeContainer {
     }
 
     public string? GetClassName(ushort index) {
-        return GetStringConstant(GetConstant<ClassConstant>(index).Name);
+        return GetStringConstant(GetConstant<NamedConstant>(index).Name);
     }
 
     internal T ReadConstant<T>(ref SpanReader reader) {
@@ -71,7 +71,7 @@ public sealed class ClassFile : IAttributeContainer {
     }
 
     private string ReadClassName(ref SpanReader reader) {
-        return (string) Constants[ReadConstant<ClassConstant>(ref reader).Name - 1];
+        return (string) Constants[ReadConstant<NamedConstant>(ref reader).Name - 1];
     }
 
     private void ReadFields(ref SpanReader reader) {
@@ -150,11 +150,17 @@ public sealed class ClassFile : IAttributeContainer {
                 case ConstantPoolType.String:
                     Constants[i] = new StringConstant(reader.ReadU16());
                     break;
-                case ConstantPoolType.Class:
-                    Constants[i] = new ClassConstant(reader.ReadU16());
+                case ConstantPoolType.Class or ConstantPoolType.MethodType:
+                    Constants[i] = new NamedConstant(reader.ReadU16());
                     break;
                 case ConstantPoolType.NameAndType:
                     Constants[i] = new NameAndType(ref reader);
+                    break;
+                case ConstantPoolType.MethodHandle:
+                    Constants[i] = new MethodHandle(ref reader);
+                    break;
+                case ConstantPoolType.Dynamic or ConstantPoolType.InvokeDynamic:
+                    Constants[i] = new Dynamic(ref reader);
                     break;
                 default:
                     throw new InvalidDataException($"Invalid constant type {type}");
@@ -162,11 +168,10 @@ public sealed class ClassFile : IAttributeContainer {
         }
 
         for (ushort i = 0; i < constantCount; i++) {
-            switch (Constants[i]) {
-                case StringConstant strConst:
-                    Constants[i] = GetStringConstant(strConst.Location)!;
-                    break;
-            }
+            Constants[i] = Constants[i] switch {
+                StringConstant strConst => GetStringConstant(strConst.Location)!,
+                _ => Constants[i]
+            };
         }
     }
 
@@ -191,10 +196,10 @@ public sealed class ClassFile : IAttributeContainer {
         }
     }
 
-    private readonly struct ClassConstant {
+    private readonly struct NamedConstant {
         public readonly ushort Name;
 
-        public ClassConstant(ushort name) {
+        public NamedConstant(ushort name) {
             Name = name;
         }
     }
@@ -207,5 +212,25 @@ public sealed class ClassFile : IAttributeContainer {
 
         public ushort NameIndex { get; }
         public ushort TypeIndex { get; }
+    }
+
+    public readonly struct Dynamic {
+        public Dynamic(ref SpanReader reader) {
+            BootstrapMethodAttrIndex = reader.ReadU16();
+            NameAndTypeIndex = reader.ReadU16();
+        }
+
+        public ushort BootstrapMethodAttrIndex { get; }
+        public ushort NameAndTypeIndex { get; }
+    }
+
+    public readonly struct MethodHandle {
+        public MethodHandle(ref SpanReader reader) {
+            ReferenceKind = reader.Read<MethodHandleType>();
+            ReferenceIndex = reader.ReadU16();
+        }
+
+        public MethodHandleType ReferenceKind { get; }
+        public ushort ReferenceIndex { get; }
     }
 }

@@ -4,7 +4,7 @@ using JavaTranslate.Translation;
 using Newtonsoft.Json;
 
 Translator translator = new Translator();
-foreach (string path in Directory.EnumerateFiles(args[0], "*.class", SearchOption.AllDirectories)) {
+foreach (string path in Directory.EnumerateFiles(args[0], "*.class", SearchOption.TopDirectoryOnly)) {
     ClassFile file = new ClassFile(File.ReadAllBytes(path));
     translator.AddClassFile(file);
     File.WriteAllText($"{Path.GetFileNameWithoutExtension(path)}.json", JsonConvert.SerializeObject(file, Formatting.Indented));
